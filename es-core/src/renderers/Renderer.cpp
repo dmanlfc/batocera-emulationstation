@@ -3,6 +3,7 @@
 #include "Renderer_GL21.h"
 #include "Renderer_GLES10.h"
 #include "Renderer_GLES20.h"
+#include "Renderer_GLES30.h"
 
 #include "math/Transform4x4f.h"
 #include "math/Vector2i.h"
@@ -746,6 +747,13 @@ namespace Renderer
 		}
 #endif
 
+#ifdef RENDERER_GLES_30
+		{
+			GLES30Renderer rd;				
+			ret.push_back(rd.getDriverName());
+		}
+#endif
+
 #ifdef RENDERER_OPENGL_21
 		{
 			OpenGL21Renderer rd;
@@ -772,6 +780,14 @@ namespace Renderer
 			GLES20Renderer rd;
 			if (rd.getDriverName() == name)
 				return new GLES20Renderer();
+		}
+#endif
+
+#ifdef RENDERER_GLES_30
+		{
+			GLES30Renderer rd;
+			if (rd.getDriverName() == name)
+				return new GLES30Renderer();
 		}
 #endif
 

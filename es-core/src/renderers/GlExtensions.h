@@ -2,7 +2,7 @@
 
 #include <SDL.h>
 
-#if USE_OPENGLES_20
+#if USE_OPENGLES_20 || USE_OPENGLES_30
 #include <SDL_opengles2.h>
 #else
 #include <SDL_opengl.h>
@@ -45,9 +45,18 @@ namespace glext
 	extern PFNGLBINDFRAMEBUFFEREXTPROC glBindFramebuffer;
 	extern PFNGLBLITFRAMEBUFFERPROC glBlitFramebuffer;
 	extern PFNGLGENFRAMEBUFFERSPROC glGenFramebuffers;
-	extern PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers;		
+	extern PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers;
 
 	extern PFNGLGETACTIVEUNIFORMPROC glGetActiveUniform;
+
+#if USE_OPENGLES_30 || defined(GL_ES_VERSION_3_0)
+	// Additional OpenGL ES 3.0 functions
+	extern PFNGLMAPBUFFERRANGEPROC glMapBufferRange;
+	extern PFNGLUNMAPBUFFERPROC glUnmapBuffer;
+	extern PFNGLGETSTRINGIPROC glGetStringi;
+	extern PFNGLTEXIMAGE3DPROC glTexImage3D;
+	extern PFNGLFRAMEBUFFERTEXTURELAYERPROC glFramebufferTextureLayer;
+#endif
 };
 
 using namespace glext;
