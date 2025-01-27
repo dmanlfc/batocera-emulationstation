@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 
 option(GLES "Set to ON if targeting Embedded OpenGL" ${GLES})
 option(GLES2 "Set to ON if targeting OpenGL ES 2.0" ${GLES2})
+option(GLES3 "Set to ON if targeting OpenGL ES 3.0" ${GLES3})
 option(GL "Set to ON if targeting Desktop OpenGL" ${GL})
 option(RPI "Set to ON to enable the Raspberry PI video player (omxplayer)" ${RPI})
 option(CEC "CEC" ON)
@@ -121,6 +122,8 @@ if(GLES)
     set(GLSystem "Embedded OpenGL" CACHE STRING "The OpenGL system to be used")
 elseif(GLES2)
     set(GLSystem "OpenGL ES 2.0" CACHE STRING "The OpenGL system to be used")
+elseif(GLES3)
+    set(GLSystem "OpenGL ES 3.0" CACHE STRING "The OpenGL system to be used")
 elseif(GL)
     set(GLSystem "Desktop OpenGL" CACHE STRING "The OpenGL system to be used")
 #-------------------------------------------------------------------------------
@@ -157,6 +160,8 @@ if(${GLSystem} MATCHES "Desktop OpenGL")
     find_package(OpenGL REQUIRED)
 elseif(${GLSystem} MATCHES "OpenGL ES 2.0")
     find_package(OpenGLES2 REQUIRED)
+elseif(${GLSystem} MATCHES "OpenGL ES 3.0")
+    find_package(OpenGLES3 REQUIRED)
 else()
     find_package(OpenGLES REQUIRED)
 endif()
@@ -279,6 +284,8 @@ if(${GLSystem} MATCHES "Desktop OpenGL")
     add_definitions(-DUSE_OPENGL_21)
 elseif(${GLSystem} MATCHES "OpenGL ES 2.0")
     add_definitions(-DUSE_OPENGLES_20)
+elseif(${GLSystem} MATCHES "OpenGL ES 3.0")
+    add_definitions(-DUSE_OPENGLES_30)
 else()
     add_definitions(-DUSE_OPENGLES_10)
 endif()
@@ -346,6 +353,10 @@ else()
     elseif(${GLSystem} MATCHES "OpenGL ES 2.0")
         LIST(APPEND COMMON_INCLUDE_DIRS
             ${OPENGLES2_INCLUDE_DIR}
+        )
+    elseif(${GLSystem} MATCHES "OpenGL ES 3.0")
+        LIST(APPEND COMMON_INCLUDE_DIRS
+            ${OPENGLES3_INCLUDE_DIR}
         )
     else()
         LIST(APPEND COMMON_INCLUDE_DIRS
@@ -452,6 +463,11 @@ else()
         LIST(APPEND COMMON_LIBRARIES
             EGL
             ${OPENGLES2_LIBRARIES}
+        )
+    elseif(${GLSystem} MATCHES "OpenGL ES 3.0")
+        LIST(APPEND COMMON_LIBRARIES
+            EGL
+            ${OPENGLES3_LIBRARIES}
         )
     else()
         LIST(APPEND COMMON_LIBRARIES

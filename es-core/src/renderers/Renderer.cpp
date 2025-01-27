@@ -3,6 +3,7 @@
 #include "Renderer_GL21.h"
 #include "Renderer_GLES10.h"
 #include "Renderer_GLES20.h"
+#include "Renderer_GLES30.h"
 
 #include "math/Transform4x4f.h"
 #include "math/Vector2i.h"
@@ -739,6 +740,13 @@ namespace Renderer
 	{
 		std::vector<std::string> ret;
 	
+#ifdef RENDERER_GLES_30
+		{
+			GLES30Renderer rd;				
+			ret.push_back(rd.getDriverName());
+		}
+#endif
+
 #ifdef RENDERER_GLES_20
 		{
 			GLES20Renderer rd;				
@@ -766,6 +774,14 @@ namespace Renderer
 	{
 		if (name.empty())
 			return nullptr;
+
+#ifdef RENDERER_GLES_30
+		{
+			GLES30Renderer rd;
+			if (rd.getDriverName() == name)
+				return new GLES30Renderer();
+		}
+#endif
 
 #ifdef RENDERER_GLES_20
 		{
@@ -799,7 +815,9 @@ namespace Renderer
 		IRenderer* instance = getRendererFromName(Settings::getInstance()->getString("Renderer"));
 		if (instance == nullptr)
 		{
-#ifdef RENDERER_GLES_20
+#ifdef RENDERER_GLES_30
+			instance = new GLES30Renderer();
+#elif RENDERER_GLES_20
 			instance = new GLES20Renderer();
 #elif RENDERER_OPENGL_21
 			instance = new OpenGL21Renderer();
