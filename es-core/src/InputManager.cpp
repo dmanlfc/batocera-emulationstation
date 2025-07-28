@@ -1241,6 +1241,33 @@ std::string InputManager::configureEmulators() {
       command << " -p" << player+1 << "nbbuttons "  << playerInputConfig->getDeviceNbButtons();
       command << " -p" << player+1 << "nbhats "     << playerInputConfig->getDeviceNbHats();
       command << " -p" << player+1 << "nbaxes "     << playerInputConfig->getDeviceNbAxes();
+#ifndef WIN32
+      int deviceIndex = playerInputConfig->getDeviceIndex();
+      
+      Uint16 version = SDL_JoystickGetDeviceProductVersion(deviceIndex);
+
+      const char* devicePath = SDL_JoystickPathForIndex(deviceIndex); // Or SDL_JoystickDevicePathById
+      if (devicePath != nullptr && devicePath[0] != '\0') {
+          command << " -p" << player+1 << "devicepath " << devicePath;
+      }
+      
+      Uint16 vendor_id = SDL_JoystickGetDeviceVendor(deviceIndex);
+      Uint16 product_id = SDL_JoystickGetDeviceProduct(deviceIndex);
+
+      if (vendor_id != 0 || product_id != 0) {
+          std::stringstream ss_vid;
+          ss_vid << "0x" << std::hex << vendor_id;
+          
+          std::stringstream ss_pid;
+          ss_pid << "0x" << std::hex << product_id;
+
+          command << " -p" << player+1 << "vid " << ss_vid.str();
+          command << " -p" << player+1 << "pid " << ss_pid.str();
+      }
+	  
+      command << " -p" << player+1 << "version 0x" << std::hex << version;
+
+#endif
       command << " ";
     }
   }
