@@ -31,7 +31,8 @@
 #endif
 
 Window::Window() : mNormalizeNextUpdate(false), mFrameTimeElapsed(0), mFrameCountElapsed(0), mAverageDeltaTime(10),
-  mAllowSleep(true), mSleeping(false), mTimeSinceLastInput(0), mScreenSaver(NULL), mRenderScreenSaver(false), mClockElapsed(0), mMouseCapture(nullptr), mMenuBackgroundShaderTextureCache(-1)
+  mAllowSleep(true), mSleeping(false), mTimeSinceLastInput(0), mScreenSaver(NULL), mRenderScreenSaver(false), mClockElapsed(0),
+  mMouseCapture(nullptr), mMenuBackgroundShaderTextureCache(-1), mNeedsRender(true)
 {			
 	mTransitionOffset = 0;
 
@@ -74,6 +75,8 @@ void Window::pushGui(GuiComponent* gui)
 	gui->onShow();
 	mGuiStack.push_back(gui);
 	gui->updateHelpPrompts();
+
+	setNeedsRender();
 }
 
 void Window::removeGui(GuiComponent* gui)
@@ -95,7 +98,8 @@ void Window::removeGui(GuiComponent* gui)
 				mGuiStack.back()->updateHelpPrompts();
 				mGuiStack.back()->topWindow(true);
 			}
-
+			
+			setNeedsRender();
 			return;
 		}
 	}
@@ -206,6 +210,8 @@ void Window::textInput(const char* text)
 {
 	if(peekGui())
 		peekGui()->textInput(text);
+	
+	setNeedsRender();
 }
 
 void Window::input(InputConfig* config, Input input)
@@ -255,6 +261,8 @@ void Window::input(InputConfig* config, Input input)
 	if (cancelScreenSaver())
 		return;
 
+	mTimeSinceLastInput = 0;
+
 	if (config->getDeviceId() == DEVICE_KEYBOARD && input.value && input.id == SDLK_g && SDL_GetModState() & KMOD_LCTRL) // && Settings::getInstance()->getBool("Debug"))
 	{
 		// toggle debug grid with Ctrl-G
@@ -282,6 +290,8 @@ void Window::input(InputConfig* config, Input input)
 
 		if (peekGui())
 			peekGui()->input(config, input); // this is where the majority of inputs will be consumed: the GuiComponent Stack
+
+		setNeedsRender();
 	}
 }
 
@@ -369,6 +379,8 @@ void Window::updateNotificationPopups(int deltaTime)
 			PowerSaver::resume();
 		else
 			layoutNotificationPopups();
+
+		setNeedsRender();
 	}
 }
 
@@ -505,6 +517,7 @@ void Window::update(int deltaTime)
 					clockBuf = Utils::Time::timeToString(clockNow, "%H:%M");
 
 				mClock->setText(clockBuf);
+				setNeedsRender();
 			}
 
 			mClockElapsed = 1000; // next update in 1000ms
@@ -514,11 +527,17 @@ void Window::update(int deltaTime)
 	mTimeSinceLastInput += deltaTime;
 
 	if (peekGui())
+	{
 		peekGui()->update(deltaTime);
+	    setNeedsRender();
+	}
 
 	// Update the screensaver
 	if (mScreenSaver)
+	{
 		mScreenSaver->update(deltaTime);
+	    setNeedsRender();
+	}
 
 	// update pads 
 	if (mControllerActivity)

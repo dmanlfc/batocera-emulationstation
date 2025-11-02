@@ -69,6 +69,11 @@ public:
 	inline bool isSleeping() const { return mSleeping; }
 	bool getAllowSleep();
 	void setAllowSleep(bool sleep);
+
+	void setNeedsRender(bool render = true) { mNeedsRender = render; }
+	bool needsRender() const { return mNeedsRender; }
+
+	unsigned int getTimeSinceLastInput() const { return mTimeSinceLastInput; }
 	
 	// Splash screen
 	std::string getCustomSplashScreenImage();
@@ -167,6 +172,8 @@ private:
 
 	bool mAllowSleep;
 	bool mSleeping;
+	bool mNeedsRender;
+	
 	unsigned int mTimeSinceLastInput;
 
 	bool mRenderedHelpPrompts;
