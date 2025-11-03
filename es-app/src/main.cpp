@@ -674,7 +674,7 @@ int main(int argc, char* argv[])
 		}
 		else
 		{
-			event_found = SDL_WaitEventTimeout(&event, 500);
+			event_found = SDL_WaitEventTimeout(&event, window.getIdealTimeout());
 		}
 
 		if(event_found)

@@ -105,7 +105,7 @@ void Window::removeGui(GuiComponent* gui)
 	}
 }
 
-GuiComponent* Window::peekGui()
+GuiComponent* Window::peekGui() const
 {
 	if(mGuiStack.size() == 0)
 		return NULL;
@@ -293,6 +293,39 @@ void Window::input(InputConfig* config, Input input)
 
 		setNeedsRender();
 	}
+}
+
+int Window::getIdealTimeout() const
+{
+	GuiComponent* currentGui = peekGui();
+	if (currentGui != nullptr && currentGui->isAnimating())
+	{
+		// An animation is active, so we need a high refresh rate.
+		return 33; // ~30 FPS
+	}
+
+	if (!mNotificationPopups.empty() || !mAsyncNotificationComponent.empty())
+	{
+		// A notification is fading in or out, so we need a high refresh rate.
+		return 33; // ~30 FPS
+	}
+
+	if (Settings::DrawClock() && mClock)
+	{
+		auto now = std::chrono::system_clock::now();
+		auto seconds = std::chrono::time_point_cast<std::chrono::seconds>(now);
+		auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - seconds);
+		
+		time_t tt = std::chrono::system_clock::to_time_t(now);
+		struct tm timeinfo = *localtime(&tt);
+
+		int ms_until_next_minute = (60 - timeinfo.tm_sec - 1) * 1000 + (1000 - ms.count());
+		if (ms_until_next_minute <= 0) ms_until_next_minute = 1000;
+
+		return ms_until_next_minute;
+	}
+
+	return 2000; // 2 seconds
 }
 
 // Notification messages

@@ -53,7 +53,7 @@ public:
 	void pushGui(GuiComponent* gui);
 	void displayNotificationMessage(std::string message, int duration = -1); 
 	void removeGui(GuiComponent* gui);
-	GuiComponent* peekGui();
+	GuiComponent* peekGui() const;
 	inline int getGuiStackSize() { return (int)mGuiStack.size(); }
 
 	void textInput(const char* text);
@@ -74,6 +74,8 @@ public:
 	bool needsRender() const { return mNeedsRender; }
 
 	unsigned int getTimeSinceLastInput() const { return mTimeSinceLastInput; }
+	
+	int getIdealTimeout() const;
 	
 	// Splash screen
 	std::string getCustomSplashScreenImage();
