@@ -1981,6 +1981,8 @@ void GuiMenu::openSystemSettings()
 
 	if (ApiSystem::getInstance()->isScriptingSupported(ApiSystem::INSTALL))
 		s->addEntry(_("INSTALL ON A NEW DISK"), true, [this] { mWindow->pushGui(new GuiInstallStart(mWindow)); });
+
+	s->addEntry(_("EJECT A DISK"), true, [this] { openUnmountDriveSettings(); });
 	
 	s->addGroup(_("ADVANCED"));
 
@@ -5316,3 +5318,72 @@ bool GuiMenu::onMouseClick(int button, bool pressed, int x, int y)
 
 	return (button == 1);
 }
+
+#ifdef BATOCERA
+void GuiMenu::openUnmountDriveSettings()
+{
+	Window *window = mWindow;
+	auto s = new GuiSettings(mWindow, _("EJECT A DISK").c_str());
+	auto optionsStorage = std::make_shared<OptionListComponent<std::string> >(window, _("DEVICE"), false);
+	std::vector<std::string> eject_list = ApiSystem::getInstance()->getEjectableDrives();  
+	bool found = false;
+	for(const auto& line : eject_list)
+	{
+		size_t delimiter = line.find(":");
+		if (delimiter != std::string::npos)
+		{
+			std::string name = line.substr(0, delimiter);
+			std::string path = line.substr(delimiter + 1);
+			optionsStorage->add(name, path, false);
+			found = true;
+		}
+	}
+
+	if (!found)
+		optionsStorage->add(_("NO EXTERNAL DEVICES FOUND"), "", true);
+	else
+		optionsStorage->selectFirstItem();
+
+	s->addWithLabel(_("DEVICE"), optionsStorage);
+
+	s->addEntry(_("EJECT"), false, [s, optionsStorage, window]
+	{
+		std::string path = optionsStorage->getSelected();
+		if (path.empty())
+		{
+			window->pushGui(new GuiMsgBox(window, _("NO DEVICE SELECTED")));
+			return;
+		}
+
+		window->pushGui(new GuiMsgBox(window, _("ARE YOU SURE YOU WANT TO EJECT THIS DEVICE?"), 
+			_("YES"), [s, window, path]
+			{
+				auto* ac = window->createAsyncNotificationComponent();
+				ac->updateText(_("Ejecting..."));
+
+				window->postToUiThread([window, ac, path, s]() {
+					bool success = ApiSystem::getInstance()->ejectDrive(path);
+					
+					window->postToUiThread([window, ac, success, s]() {
+						ac->close();
+
+						if (success)
+						{
+							window->pushGui(new GuiMsgBox(window, _("DEVICE EJECTED SAFELY.\nGAME LISTS WILL NOW BE UPDATED."), _("OK"), [s, window] {
+								s->close();
+								ViewController::reloadAllGames(window, true, true); // Trigger full re-scan
+							}));
+						}
+						else
+						{
+							window->pushGui(new GuiMsgBox(window, _("FAILED TO EJECT DEVICE.\nIT MAY BE IN USE."), _("OK")));
+						}
+					});
+				});
+			}, 
+			_("NO"), nullptr));
+	});
+
+	mWindow->pushGui(s);
+}
+#endif

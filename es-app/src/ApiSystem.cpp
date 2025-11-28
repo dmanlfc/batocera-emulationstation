@@ -2823,3 +2823,14 @@ bool ApiSystem::enableService(std::string name, bool enable)
 	
 	return res;
 }
+
+std::vector<std::string> ApiSystem::getEjectableDrives()
+{
+    return executeEnumerationScript("/usr/bin/batocera-storage-manager list_ejectable");
+}
+
+bool ApiSystem::ejectDrive(const std::string& mountPath)
+{
+    std::string cmd = "/usr/bin/batocera-storage-manager eject \"" + mountPath + "\"";
+    return executeScript(cmd);
+}

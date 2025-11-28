@@ -362,6 +362,14 @@ void playVideo()
 		return;
 	}
 
+#ifdef BATOCERA
+    window.setReloadAllCallback([]() {
+        if (ViewController::get()) {
+            ViewController::get()->reloadAll();
+        }
+    });
+#endif
+
 	Settings::getInstance()->setBool("VideoAudio", true);
 
 	bool exitLoop = false;
@@ -544,6 +552,14 @@ int main(int argc, char* argv[])
 		LOG(LogError) << "Window failed to initialize!";
 		return 1;
 	}
+
+#ifdef BATOCERA
+    window.setReloadAllCallback([&window]() {
+        if (ViewController::get()) {
+            ViewController::reloadAllGames(&window, true, true);
+        }
+    });
+#endif
 
 	Renderer::setWindowResizable(false);
 	PowerSaver::init();

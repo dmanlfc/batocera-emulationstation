@@ -26,6 +26,11 @@
 #include "PowerSaver.h"
 #include "renderers/Renderer.h"
 
+#ifdef BATOCERA
+#include <fstream>
+#include "utils/FileSystemUtil.h"
+#endif
+
 #if WIN32
 #include <SDL_syswm.h>
 #endif
@@ -41,6 +46,12 @@ Window::Window() : mNormalizeNextUpdate(false), mFrameTimeElapsed(0), mFrameCoun
 
 	mSplash = nullptr;
 	mLastShowCursor = -2;
+
+#ifdef BATOCERA
+	mCheckedPendingStorage = false;
+	mStoragePipeTimer = 0;
+#endif
+
 }
 
 Window::~Window()
@@ -441,6 +452,38 @@ void Window::update(int deltaTime)
 	processPostedFunctions();
 	processSongTitleNotifications();
 	processNotificationMessages();
+
+#ifdef BATOCERA
+	// One-time Boot Check for pending storage requests (from boot scripts)
+	if (!mCheckedPendingStorage) {
+		mCheckedPendingStorage = true;
+		checkPendingStorageRequests();
+	}
+
+	// Runtime Hotplug Check (Poll file every 1s)
+	mStoragePipeTimer += deltaTime;
+	if (mStoragePipeTimer > 1000) {
+		mStoragePipeTimer = 0;
+		
+		const std::string eventFile = "/tmp/es-hotplug-event";
+
+		if (Utils::FileSystem::exists(eventFile)) {
+            std::ifstream file(eventFile);
+            std::string line;
+            
+            // Read all lines (in case multiple drives inserted at once)
+            while (std::getline(file, line)) {
+                if(!line.empty()) {
+                    processStorageRequest(line);
+                }
+            }
+            file.close();
+            
+            // Delete file after processing so we don't process it again
+            remove(eventFile.c_str());
+		}
+	}
+#endif
 
 	if (mNormalizeNextUpdate)
 	{
@@ -1427,3 +1470,95 @@ bool Window::processMouseButton(int button, bool down, int x, int y)
 
 	return false;
 }
+
+#ifdef BATOCERA
+void Window::checkPendingStorageRequests()
+{
+	const std::string pendingFile = "/tmp/es-pending-storage";
+	if (Utils::FileSystem::exists(pendingFile))
+	{
+		std::ifstream file(pendingFile);
+		std::string line;
+		while (std::getline(file, line))
+		{
+			if(!line.empty())
+				processStorageRequest(line);
+		}
+		file.close();
+		// Remove the file so we don't process it again
+		remove(pendingFile.c_str());
+	}
+}
+
+void Window::processStorageRequest(std::string line)
+{
+	LOG(LogInfo) << "Storage Request Received: " << line;
+	
+	size_t delimiter = line.find(":");
+	if (delimiter == std::string::npos) return;
+
+	std::string type = line.substr(0, delimiter);
+	std::string argument = line.substr(delimiter + 1);
+
+	if (type == "REQUEST_MOUNT")
+	{
+		auto* msg = new GuiMsgBox(this, 
+			"GAME STORAGE DETECTED\n\nA new drive was found at:\n" + argument + "\n\nMerge games with internal storage?", 
+			"YES", [this, argument] {
+				
+				auto* ac = this->createAsyncNotificationComponent();
+				ac->updateText(_("Merging Games..."));
+
+				this->postToUiThread([this, ac, argument]() {
+					std::string cmd = "/usr/bin/batocera-storage-manager mount_overlay " + argument;
+					int ret = std::system(cmd.c_str());
+
+					this->postToUiThread([this, ac, ret]() {
+						ac->close();
+
+						if (ret == 0) {
+							if (mReloadAllCallback)
+								mReloadAllCallback();
+						} else {
+							this->pushGui(new GuiMsgBox(this, "Error: Merge failed. Check logs.", "OK", nullptr));
+						}
+					});
+				});
+			}, 
+			"NO", []{}
+		);
+		pushGui(msg);
+	} 
+	else if (type == "REQUEST_FORMAT")
+	{
+		auto* msg = new GuiMsgBox(this, 
+			"UNINITIALIZED DRIVE DETECTED\n\nDevice: " + argument + "\n\nFormat as Internal Storage?\n(ALL DATA WILL BE ERASED)", 
+			"FORMAT & MOUNT", [this, argument] {
+				
+				auto* ac = this->createAsyncNotificationComponent();
+				ac->updateText(_("Formatting..."));
+
+				this->postToUiThread([this, ac, argument]() {
+					std::string cmd = "/usr/bin/batocera-storage-manager format " + argument;
+					int ret = std::system(cmd.c_str());
+
+					this->postToUiThread([this, ac, ret]() {
+						ac->close();
+						
+						if (ret == 0) {
+							if (mReloadAllCallback)
+								mReloadAllCallback();
+							
+							this->displayNotificationMessage(_("Success! Drive is ready."));
+						} else {
+							this->pushGui(new GuiMsgBox(this, "Format Failed. Check /var/log/batocera-storage.log", "OK", nullptr));
+						}
+					});
+				});
+			}, 
+			"IGNORE", []{}
+		);
+		pushGui(msg);
+	}
+}
+#endif
