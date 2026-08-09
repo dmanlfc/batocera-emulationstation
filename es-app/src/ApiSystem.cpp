@@ -348,34 +348,87 @@ std::pair<std::string, int> ApiSystem::backupSystem(BusyComponent* ui, std::stri
 	return std::pair<std::string, int>(std::string(line), exitCode);
 }
 
-std::pair<std::string, int> ApiSystem::installSystem(BusyComponent* ui, std::string device, std::string architecture) 
+ApiSystem::DiskInfo ApiSystem::getDiskInfo(const std::string& device)
 {
-	LOG(LogDebug) << "ApiSystem::installSystem";
+    LOG(LogDebug) << "ApiSystem::getDiskInfo for " << device;
 
-	std::string updatecommand = "batocera-install install " + device + " " + architecture;
-	FILE *pipe = popen(updatecommand.c_str(), "r");
-	if (pipe == NULL)
-		return std::pair<std::string, int>(std::string("Cannot call install command"), -1);
+    DiskInfo info;
+    info.type = "standard";
+    info.powerConnected = true;
+    info.minAndroidGb = 1;
+    info.maxAndroidGb = 1;
+    info.sourceBootSizeMib = 10240; // Default fallback to 10GB
+    info.totalUserdataKb = 0;
+    info.essentialUserdataKb = 0;
+    info.targetDiskSizeKb = 0;
 
-	char line[1024] = "";
+    auto lines = executeEnumerationScript("batocera-install checkDisk " + device);
+    for (const auto& line : lines)
+    {
+        size_t pos = line.find('=');
+        if (pos == std::string::npos)
+            continue;
 
-	FILE *flog = fopen(Utils::FileSystem::combine(Paths::getLogPath(), "batocera-install.log").c_str(), "w");
-	while (fgets(line, 1024, pipe)) 
-	{
-		strtok(line, "\n");
-		if (flog != NULL) fprintf(flog, "%s\n", line);
-		ui->setText(std::string(line));
-	}
+        std::string key = line.substr(0, pos);
+        std::string val = line.substr(pos + 1);
 
-	int exitCode = WEXITSTATUS(pclose(pipe));
+        if (key == "TYPE") info.type = val;
+        else if (key == "POWER_CONNECTED") info.powerConnected = (val == "1");
+        else if (key == "MIN_ANDROID_GB") info.minAndroidGb = atoi(val.c_str());
+        else if (key == "MAX_ANDROID_GB") info.maxAndroidGb = atoi(val.c_str());
+        else if (key == "SOURCE_BOOT_SIZE_MIB") info.sourceBootSizeMib = strtoull(val.c_str(), nullptr, 10);
+        else if (key == "TOTAL_USERDATA_KB") info.totalUserdataKb = strtoull(val.c_str(), nullptr, 10);
+        else if (key == "ESSENTIAL_USERDATA_KB") info.essentialUserdataKb = strtoull(val.c_str(), nullptr, 10);
+        else if (key == "TARGET_DISK_SIZE_KB") info.targetDiskSizeKb = strtoull(val.c_str(), nullptr, 10);
+    }
 
-	if (flog != NULL)
-	{
-		fprintf(flog, "Exit code : %d\n", exitCode);
-		fclose(flog);
-	}
+    return info;
+}
 
-	return std::pair<std::string, int>(std::string(line), exitCode);
+std::pair<std::string, int> ApiSystem::installSystem(
+    BusyComponent* ui, 
+    std::string device, 
+    std::string architecture, 
+    std::string installMode, 
+    int androidSizeGb, 
+    std::string copyDataOpt) 
+{
+    LOG(LogDebug) << "ApiSystem::installSystem";
+
+    std::string updatecommand = "batocera-install install " + device + " " + architecture;
+    if (architecture == "local")
+    {
+        updatecommand += " --install-mode " + installMode;
+        if (installMode == "resize")
+        {
+            updatecommand += " --android-size " + std::to_string(androidSizeGb);
+        }
+        updatecommand += " --copy-data " + copyDataOpt;
+    }
+
+    FILE *pipe = popen(updatecommand.c_str(), "r");
+    if (pipe == NULL)
+        return std::pair<std::string, int>(std::string("Cannot call install command"), -1);
+
+    char line[1024] = "";
+
+    FILE *flog = fopen(Utils::FileSystem::combine(Paths::getLogPath(), "batocera-install.log").c_str(), "w");
+    while (fgets(line, 1024, pipe)) 
+    {
+        strtok(line, "\n");
+        if (flog != NULL) fprintf(flog, "%s\n", line);
+        ui->setText(std::string(line));
+    }
+
+    int exitCode = WEXITSTATUS(pclose(pipe));
+
+    if (flog != NULL)
+    {
+        fprintf(flog, "Exit code : %d\n", exitCode);
+        fclose(flog);
+    }
+
+    return std::pair<std::string, int>(std::string(line), exitCode);
 }
 
 std::pair<std::string, int> ApiSystem::scrape(BusyComponent* ui) 

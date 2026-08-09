@@ -3,19 +3,30 @@
 
 #include "Window.h"
 #include <string>
+#include <cstdlib>
 #include "Log.h"
 #include "Settings.h"
 #include "ApiSystem.h"
 #include "LocaleES.h"
 
-GuiInstall::GuiInstall(Window* window, std::string storageDevice, std::string architecture) : GuiComponent(window), mBusyAnim(window)
+GuiInstall::GuiInstall(
+    Window* window, 
+    std::string storageDevice, 
+    std::string architecture, 
+    std::string installMode, 
+    int androidSize, 
+    std::string copyData) 
+    : GuiComponent(window), mBusyAnim(window)
 {
 	setSize((float)Renderer::getScreenWidth(), (float)Renderer::getScreenHeight());
-        mLoading = true;
+	mLoading = true;
 	mState = 1;
-        mBusyAnim.setSize(mSize);
+	mBusyAnim.setSize(mSize);
 	mstorageDevice = storageDevice;
 	marchitecture = architecture;
+	mInstallMode = installMode;
+	mAndroidSize = androidSize;
+	mCopyData = copyData;
 }
 
 GuiInstall::~GuiInstall()
@@ -47,45 +58,61 @@ void GuiInstall::render(const Transform4x4f& parentTrans)
 }
 
 void GuiInstall::update(int deltaTime) {
-        GuiComponent::update(deltaTime);
-        mBusyAnim.update(deltaTime);
-        
-        Window* window = mWindow;
-        if(mState == 1){
-	  mLoading = true;
-	  mHandle = new std::thread(&GuiInstall::threadInstall, this);
-	  mState = 0;
-        }
+    GuiComponent::update(deltaTime);
+    mBusyAnim.update(deltaTime);
+    
+    Window* window = mWindow;
+    if(mState == 1){
+      mLoading = true;
+      mHandle = new std::thread(&GuiInstall::threadInstall, this);
+      mState = 0;
+    }
 
-        if(mState == 2){
-	  window->pushGui(
-			  new GuiMsgBox(window, _("FINISHED"), _("OK"),
-					[this] {
-					  mState = -1;
-					}
-					)
-			  );
-	  mState = 0;
-        }
-        if(mState == 3){
-            window->pushGui(
-                    new GuiMsgBox(window, mResult.first, _("OK"),
-                                  [this] {
-                                      mState = -1;
-                                  }
-                    )
-            );
-            mState = 0;
-        }
+    if(mState == 2){
+      // SUCCESS: Shutdown prompt to allow safe source media extraction
+      window->pushGui(
+          new GuiMsgBox(window, 
+              _("BATOCERA HAS BEEN SUCCESSFULLY INSTALLED!\n\nTHE SYSTEM NEEDS TO SHUT DOWN. ONCE FULLY POWERED OFF, REMOVE THE INSTALLATION SD CARD OR USB DRIVE, THEN RESTART THE SYSTEM TO BOOT INTO THE NEW DRIVE. SHUT DOWN NOW?"), 
+              _("SHUTDOWN NOW"),
+              [] {
+                  system("shutdown -h now");
+              },
+              _("LATER"), 
+              [this] {
+                  mState = -1;
+              }
+          )
+      );
+      mState = 0;
+    }
+    
+    if(mState == 3){
+        window->pushGui(
+            new GuiMsgBox(window, mResult.first, _("OK"),
+                          [this] {
+                              mState = -1;
+                          }
+            )
+        );
+        mState = 0;
+    }
 
-        if(mState == -1){
-	  delete this;
-        }
+    if(mState == -1){
+      delete this;
+    }
 }
 
 void GuiInstall::threadInstall() 
 {
-    std::pair<std::string,int> updateStatus = ApiSystem::getInstance()->installSystem(&mBusyAnim, mstorageDevice, marchitecture);
+    std::pair<std::string,int> updateStatus = ApiSystem::getInstance()->installSystem(
+        &mBusyAnim, 
+        mstorageDevice, 
+        marchitecture, 
+        mInstallMode, 
+        mAndroidSize, 
+        mCopyData
+    );
+    
     if(updateStatus.second == 0){
         this->onInstallOk();
     }else {

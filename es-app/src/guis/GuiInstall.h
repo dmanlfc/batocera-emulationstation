@@ -9,7 +9,14 @@
 
 class GuiInstall : public GuiComponent {
 public:
-    GuiInstall(Window *window, std::string storageDevice, std::string architecture);
+    GuiInstall(
+        Window* window, 
+        std::string storageDevice, 
+        std::string architecture, 
+        std::string installMode = "format", 
+        int androidSize = 0, 
+        std::string copyData = "none"
+    );
 
     virtual ~GuiInstall();
 
@@ -37,5 +44,9 @@ private:
     void onInstallOk();
 
     void threadInstall();
+
+    std::string mInstallMode;
+    int mAndroidSize;
+    std::string mCopyData;
 
 };

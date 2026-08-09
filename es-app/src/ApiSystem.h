@@ -206,7 +206,6 @@ public:
     virtual std::pair<std::string, int> updateSystem(const std::function<void(const std::string)>& func = nullptr, bool fromlocalmedia = false);
 
     std::pair<std::string, int> backupSystem(BusyComponent* ui, std::string device);
-    std::pair<std::string, int> installSystem(BusyComponent* ui, std::string device, std::string architecture);
     std::pair<std::string, int> scrape(BusyComponent* ui);
 
     virtual bool ping();
@@ -406,6 +405,28 @@ public:
 
 	virtual bool nfc_is_available();
 	virtual bool nfc_write(const std::string& game);
+
+    struct DiskInfo {
+        std::string type;                  // "android_resize" or "standard"
+        bool powerConnected;               // true if AC connected, false if on battery
+        int minAndroidGb;                  // Minimum size allowed for Android (e.g. 1)
+        int maxAndroidGb;                  // Maximum size allowed for Android
+        unsigned long long sourceBootSizeMib; // Size of running /boot in MiB
+        unsigned long long totalUserdataKb;   // Total size of current /userdata
+        unsigned long long essentialUserdataKb; // Size of current /userdata excluding ROMs/cache
+        unsigned long long targetDiskSizeKb;  // Total size of target disk
+    };
+
+    DiskInfo getDiskInfo(const std::string& device);
+
+    std::pair<std::string, int> installSystem(
+        BusyComponent* ui, 
+        std::string device, 
+        std::string architecture, 
+        std::string installMode = "format", 
+        int androidSizeGb = 0, 
+        std::string copyDataOpt = "none"
+    );
 
 protected:
 	ApiSystem();
