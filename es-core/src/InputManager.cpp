@@ -287,6 +287,25 @@ public:
 		return "";
 	}
 
+	std::string getHidCollectionSuffix(const std::string& devicePath)
+	{
+		std::string upper = Utils::String::toUpper(devicePath);
+
+		size_t idx = upper.find("&COL");
+		if (idx == std::string::npos)
+			return "";
+
+		size_t start = idx + 4;
+		size_t end = start;
+		while (end < upper.size() && upper[end] >= '0' && upper[end] <= '9')
+			end++;
+
+		if (end == start)
+			return "";
+
+		return "#COL" + upper.substr(start, end - start);
+	}
+
 	std::string getInputDeviceParent(const std::string& devicePath)
 	{
 		if (m_CM_Locate_DevNodeA == NULL || m_CM_Get_Parent == NULL || m_CM_Get_Device_IDA == NULL)
@@ -308,15 +327,21 @@ public:
 		path = Utils::String::replace(path, "\\\\?\\", "");
 		path = Utils::String::replace(path, "#", "\\");
 
+		// Multi-collection HID devices (Xin-Mo / Xinmotek dual arcade encoders, DragonRise and
+		// "Twin USB" 2-players boards, ...) expose one joystick per top-level collection, and all
+		// these collections share the exact same parent device node. Keep the collection index,
+		// otherwise every player would be given the very same device path.
+		std::string collection = getHidCollectionSuffix(devicePath);
+
 		DEVINST nDevInst;
-		int apiResult = m_CM_Locate_DevNodeA(&nDevInst, (DEVINSTID_A) path.c_str(), CM_LOCATE_DEVNODE_NORMAL);
+		int apiResult = m_CM_Locate_DevNodeA(&nDevInst, (DEVINSTID_A)path.c_str(), CM_LOCATE_DEVNODE_NORMAL);
 		if (apiResult == CR_SUCCESS)
 		{
 			if (m_CM_Get_Parent(&nDevInst, nDevInst, 0) == CR_SUCCESS)
 			{
 				char buf[255];
 				if (m_CM_Get_Device_IDA(nDevInst, buf, 255, 0) == CR_SUCCESS)
-					return std::string(buf);
+					return std::string(buf) + collection;
 			}
 		}
 
@@ -1270,7 +1295,19 @@ std::map<int, InputConfig*> InputManager::computePlayersConfigs()
 			availableConfigured.push_back(conf.second);
 
 	// sort available configs
-	std::sort(availableConfigured.begin(), availableConfigured.end(), [](InputConfig * a, InputConfig * b) -> bool { return a->getSortDevicePath() < b->getSortDevicePath(); });
+	// Two joysticks belonging to the same physical board can end up with the same path, so fall
+	// back on the device index to keep a deterministic order across reboots, otherwise std::sort
+	// would swap the players randomly.
+	std::sort(availableConfigured.begin(), availableConfigured.end(), [](InputConfig* a, InputConfig* b) -> bool
+	{
+		std::string pathA = a->getSortDevicePath();
+		std::string pathB = b->getSortDevicePath();
+
+		if (pathA != pathB)
+			return pathA < pathB;
+
+		return a->getDeviceIndex() < b->getDeviceIndex();
+	});
 
 	// 2. Pour chaque joueur verifier si il y a un configurated
 	// associer le input au joueur
@@ -1370,10 +1407,11 @@ std::map<int, InputConfig*> InputManager::computePlayersConfigs()
 
 	for (int player = 0; player < MAX_PLAYERS; player++)
 	{
-		if (playerJoysticks.find(player) != playerJoysticks.cend())
+		auto it = playerJoysticks.find(player);
+		if (it == playerJoysticks.cend() || it->second == nullptr)
 			continue;
 
-		LOG(LogInfo) << "computePlayersConfigs : Player " << player << " => " << playerJoysticks[player]->getDevicePath();
+		LOG(LogInfo) << "computePlayersConfigs : Player " << player << " => " << it->second->getDevicePath();
 	}
 
 	return playerJoysticks;
