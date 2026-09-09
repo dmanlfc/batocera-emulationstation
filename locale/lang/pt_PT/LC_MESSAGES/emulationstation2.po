@@ -2272,7 +2272,7 @@ msgid "UPDATE TYPE"
 msgstr "TIPO DE ATUALIZAÇÃO"
 
 msgid "ARCHITECTURE UPDATE"
-msgstr ""
+msgstr "ATUALIZAÇÃO DA ARQUITETURA"
 
 msgid "APPLY UPDATE"
 msgstr "APLICAR ATUALIZAÇÃO"
@@ -4038,8 +4038,7 @@ msgid_plural "%d seconds ago"
 msgstr[0] "%d segundo atrás"
 msgstr[1] "%d segundos atrás"
 
-#~ msgid "FANART"
-#~ msgstr "ARTE DE FÃS"
+
 
 #~ msgid ""
 #~ "YOU ARE GOING TO MAP A CONTROLLER. MAP BASED ON THE BUTTON'S POSITION "
