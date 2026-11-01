@@ -42,7 +42,6 @@
 #include "watchers/WatchersManager.h"
 #include "HttpReq.h"
 #include <thread>
-#include "ZaparooSupport.h"
 #include "utils/ThreadPool.h"
 
 #ifdef WIN32
@@ -585,7 +584,6 @@ int main(int argc, char* argv[])
 	SystemScreenSaver screensaver(&window);
 	CollectionSystemManager::init(&window);
 	
-	Zaparoo::checkZaparooEnabledAsync();
 	PowerSaver::init();
 	InputConfig::AssignActionButtons();
 

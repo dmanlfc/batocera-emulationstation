@@ -1,64 +1,109 @@
 #include "ZaparooSupport.h"
 #include "HttpReq.h"
 #include "Log.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <mutex>
-#include <thread>
+#include "utils/FileSystemUtil.h"
 #include "utils/Randomizer.h"
+#include <cstring>
+#include <rapidjson/document.h>
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
 
-bool Zaparoo::mChecked = false;
-bool Zaparoo::mAvailable = false;
+static const char* ZAPAROO_API = "http://127.0.0.1:7497/api/v0.1";
 
-static std::mutex mZaparooLock;
-
-void Zaparoo::invalidateCache()
+static std::string buildRequest(const char* method, const std::string& uuid, const std::string& text = "")
 {
-	mChecked = false;
-}
-
-void Zaparoo::checkZaparooEnabledAsync(const std::function<void(bool enabled)>& func)
-{
-	std::thread([func]()
+	rapidjson::StringBuffer buffer;
+	rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+	writer.StartObject();
+	writer.Key("jsonrpc");
+	writer.String("2.0");
+	writer.Key("id");
+	writer.String(uuid.c_str());
+	writer.Key("method");
+	writer.String(method);
+	if (!text.empty())
 	{
-		bool enabled = isZaparooEnabled(3000);
-		if (func)
-			func(enabled);
-	}).detach();
+		writer.Key("params");
+		writer.StartObject();
+		writer.Key("text");
+		writer.String(text.c_str());
+		writer.EndObject();
+	}
+	writer.EndObject();
+	return buffer.GetString();
 }
 
-bool Zaparoo::isZaparooEnabled(long defaultDelay)
+static bool hasWriteCapability(const rapidjson::Value& reader)
 {
-	std::unique_lock<std::mutex> lock(mZaparooLock);
+	if (!reader.IsObject())
+		return false;
 
-	if (mChecked)
-		return mAvailable;
+	auto connected = reader.FindMember("connected");
+	if (connected == reader.MemberEnd() || !connected->value.IsBool() || !connected->value.GetBool())
+		return false;
+
+	auto capabilities = reader.FindMember("capabilities");
+	if (capabilities == reader.MemberEnd() || !capabilities->value.IsArray())
+		return false;
+
+	for (const auto& capability : capabilities->value.GetArray())
+		if (capability.IsString() && strcmp(capability.GetString(), "write") == 0)
+			return true;
+
+	return false;
+}
+
+bool Zaparoo::isZaparooEnabled()
+{
+#ifndef _WIN32
+	if (!Utils::FileSystem::exists("/tmp/zaparoo/core.pid", false))
+		return false;
+#endif
 
 	HttpReqOptions options;
-	options.connectTimeout = defaultDelay;
-	HttpReq req("http://127.0.0.1:7497/health", &options);
+	options.connectTimeout = 100L;
+	options.customHeaders = { "Content-Type: application/json" };
+	options.dataToPost = buildRequest("readers", Randomizer::generateUUID());
 
-	if (req.wait())
-	{
-		std::string data = req.getContent();
-		mAvailable = (data.compare("OK") == 0);
-	}
-	else
-		mAvailable = false;
+	HttpReq req(ZAPAROO_API, &options);
+	if (!req.wait())
+		return false;
 
-	mChecked = true;
-	return mAvailable;
+	rapidjson::Document doc;
+	doc.Parse(req.getContent().c_str());
+	if (doc.HasParseError() || !doc.IsObject())
+		return false;
+
+	auto result = doc.FindMember("result");
+	if (result == doc.MemberEnd() || !result->value.IsObject())
+		return false;
+
+	auto readers = result->value.FindMember("readers");
+	if (readers == result->value.MemberEnd() || !readers->value.IsArray())
+		return false;
+
+	for (const auto& reader : readers->value.GetArray())
+		if (hasWriteCapability(reader))
+			return true;
+
+	return false;
 }
 
 bool Zaparoo::writeZaparooCard(const std::string& name)
-{	
+{
 	std::string uuid = Randomizer::generateUUID();
 	LOG(LogInfo) << "Zaparoo::writeZaparooCard -> " << uuid;
 
 	HttpReqOptions options;
 	options.customHeaders = { "Content-Type: application/json" };
-	options.dataToPost = "{\"jsonrpc\": \"2.0\",\"id\": \"" + uuid + "\",\"method\": \"readers.write\",\"params\": {\"text\": \"" + name + "\"}}";
-	
-	HttpReq req("http://127.0.0.1:7497/api/v0.1", &options);
-	return req.wait();
+	options.dataToPost = buildRequest("readers.write", uuid, name);
+
+	HttpReq req(ZAPAROO_API, &options);
+	if (!req.wait())
+		return false;
+
+	// Write failures still come back as HTTP 200
+	rapidjson::Document doc;
+	doc.Parse(req.getContent().c_str());
+	return !doc.HasParseError() && doc.IsObject() && !doc.HasMember("error");
 }
